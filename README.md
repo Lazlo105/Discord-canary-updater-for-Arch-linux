@@ -9,3 +9,12 @@
 - Скачивает актуальный архив discord-canary.tar.gz с официального сервера Discord.
 - Распаковывает его.
 - Заменяет старую версию на новую.
+
+## Установка
+1. Скачиваем последнюю версию https://github.com/Lazlo105/Discord-canary-updater-for-Arch-linux/releases/latest
+2. Выдаем права на исполнение:
+```
+chmod +x discord-updater
+```
+3. Запускаем
+
