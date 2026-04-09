@@ -9,10 +9,20 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
-func Downloader(url, filePath string) error {
-	log.Println("Init download from discord.com to", filePath)
+// Константы для путей
+const (
+	tmpDir            = "/tmp"
+	discordInstallDir = "/opt/discord-canary"
+	downloadURL       = "https://discord.com/api/download/canary?platform=linux&format=tar.gz"
+	archiveName       = "discord-canary.tar.gz"
+)
+
+// downloader скачивает файл по указанному URL и сохраняет его по заданному пути.
+func downloader(url, filePath string) error {
+	log.Println("Начинаем загрузку из Discord в", filePath)
 
 	out, err := os.Create(filePath)
 	if err != nil {
@@ -20,7 +30,7 @@ func Downloader(url, filePath string) error {
 	}
 	defer out.Close()
 
-	log.Println("Downloading...")
+	log.Println("Загрузка...")
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -29,7 +39,7 @@ func Downloader(url, filePath string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status: %s", resp.Status)
+		return fmt.Errorf("ошибка статуса: %s", resp.Status)
 	}
 
 	_, err = io.Copy(out, resp.Body)
@@ -37,14 +47,15 @@ func Downloader(url, filePath string) error {
 		return err
 	}
 
-	log.Println("Download complete")
+	log.Println("Загрузка завершена")
 	return nil
 }
 
-func Extracter(archive_path string) (string, error) {
-	log.Println("Unpacking ", archive_path, " ...")
+// extractor распаковывает tar.gz архив и возвращает путь к извлеченной папке.
+func extractor(archivePath string) (string, error) {
+	log.Println("Распаковка архива", archivePath, "...")
 
-	file, err := os.Open(archive_path)
+	file, err := os.Open(archivePath)
 	if err != nil {
 		return "", err
 	}
@@ -55,9 +66,9 @@ func Extracter(archive_path string) (string, error) {
 		return "", err
 	}
 	defer gzr.Close()
-	tr := tar.NewReader(gzr)
 
-	destDir := filepath.Dir(archive_path)
+	tr := tar.NewReader(gzr)
+	destDir := filepath.Dir(archivePath)
 	var extractedFolderName string
 
 	for {
@@ -71,10 +82,11 @@ func Extracter(archive_path string) (string, error) {
 
 		target := filepath.Join(destDir, header.Name)
 
-		// В архиве Discord первый элемент обычно "DiscordCanary"
+		// Определяем имя первой папки в архиве (например, "DiscordCanary")
 		if extractedFolderName == "" {
-			parts := filepath.SplitList(header.Name)
-			if len(parts) > 0 {
+			// Разделяем путь по слэшам и берем первый элемент
+			parts := strings.Split(header.Name, "/")
+			if len(parts) > 0 && parts[0] != "" {
 				extractedFolderName = parts[0]
 			} else {
 				extractedFolderName = header.Name
@@ -82,47 +94,54 @@ func Extracter(archive_path string) (string, error) {
 		}
 
 		if header.Typeflag == tar.TypeDir {
-			os.MkdirAll(target, 0755)
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return "", err
+			}
 		} else {
-			os.MkdirAll(filepath.Dir(target), 0755)
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return "", err
+			}
 
-			out, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			outFile, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
 				return "", err
 			}
-			io.Copy(out, tr)
-			out.Close()
+
+			_, err = io.Copy(outFile, tr)
+			outFile.Close() // Закрываем файл даже при ошибке копирования
+			if err != nil {
+				return "", err
+			}
 		}
 	}
 
-	log.Println("Unpacking complete")
-
+	log.Println("Распаковка завершена")
 	return filepath.Join(destDir, extractedFolderName), nil
 }
 
-func Updater(source_dir, dist_dir string) error {
-	log.Println("Deleting old version...")
+// updater переносит файлы из временной папки в целевую директорию установки.
+func updater(sourceDir, destDir string) error {
+	log.Println("Удаление старой версии...")
 
-	err := os.RemoveAll(dist_dir)
-	if err != nil {
+	if err := os.RemoveAll(destDir); err != nil {
 		return err
 	}
-	log.Println("Deleting complete")
+	log.Println("Старая версия удалена")
 
-	log.Println("Installing new version...")
+	log.Println("Установка новой версии...")
 
-	if err := os.MkdirAll(dist_dir, 0755); err != nil {
+	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return err
 	}
 
-	entries, err := os.ReadDir(source_dir)
+	entries, err := os.ReadDir(sourceDir)
 	if err != nil {
 		return err
 	}
 
 	for _, entry := range entries {
-		srcPath := filepath.Join(source_dir, entry.Name())
-		dstPath := filepath.Join(dist_dir, entry.Name())
+		srcPath := filepath.Join(sourceDir, entry.Name())
+		dstPath := filepath.Join(destDir, entry.Name())
 
 		if entry.IsDir() {
 			if err := copyDir(srcPath, dstPath); err != nil {
@@ -135,15 +154,18 @@ func Updater(source_dir, dist_dir string) error {
 		}
 	}
 
-	log.Println("Installing complete")
+	log.Println("Установка завершена")
 
-	log.Println("Cleaning up temp source folder...")
-	os.RemoveAll(source_dir)
+	log.Println("Очистка временной папки...")
+	if err := os.RemoveAll(sourceDir); err != nil {
+		return err
+	}
 
 	return nil
 }
 
-func copyDir(src string, dst string) error {
+// copyDir рекурсивно копирует содержимое директории.
+func copyDir(src, dst string) error {
 	if err := os.MkdirAll(dst, 0755); err != nil {
 		return err
 	}
@@ -170,6 +192,7 @@ func copyDir(src string, dst string) error {
 	return nil
 }
 
+// copyFile копирует файл из одного места в другое с сохранением прав доступа.
 func copyFile(src, dst string) error {
 	source, err := os.Open(src)
 	if err != nil {
@@ -188,38 +211,47 @@ func copyFile(src, dst string) error {
 		return err
 	}
 
-	info, _ := source.Stat()
-	destination.Chmod(info.Mode())
+	info, err := source.Stat()
+	if err != nil {
+		return err
+	}
+
+	if err := destination.Chmod(info.Mode()); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func main() {
-	fileName := "discord-canary.tar.gz"
-	fullPathToArchive := filepath.Join("/tmp", fileName)
-	fullPathToDiscord := "/opt/discord-canary"
+	// Формируем полные пути
+	archivePath := filepath.Join(tmpDir, archiveName)
 
-	// 1. Скачиваем
-	err := Downloader("https://discord.com/api/download/canary?platform=linux&format=tar.gz", fullPathToArchive)
-	if err != nil {
-		log.Fatal("Download error:", err)
+	// 1. Скачиваем архив во временную папку /tmp
+	log.Println("Шаг 1: Загрузка архива")
+	if err := downloader(downloadURL, archivePath); err != nil {
+		log.Fatal("Ошибка загрузки:", err)
 	}
 
-	// 2. Распаковываем
-	extractedPath, err := Extracter(fullPathToArchive)
+	// 2. Распаковываем архив
+	log.Println("Шаг 2: Распаковка архива")
+	extractedPath, err := extractor(archivePath)
 	if err != nil {
-		log.Fatal("Extract error:", err)
+		log.Fatal("Ошибка распаковки:", err)
 	}
-	log.Println("Extracted to:", extractedPath)
+	log.Println("Архив распакован в:", extractedPath)
 
-	// 3. Переносим файлы
-	err = Updater(extractedPath, fullPathToDiscord)
-	if err != nil {
-		log.Fatal("Update error:", err)
+	// 3. Переносим файлы в директорию установки
+	log.Println("Шаг 3: Установка Discord Canary")
+	if err := updater(extractedPath, discordInstallDir); err != nil {
+		log.Fatal("Ошибка установки:", err)
 	}
 
-	// 4. Удаляем архив
-	os.Remove(fullPathToArchive)
+	// 4. Удаляем архив (файл в /tmp удалится сам после перезагрузки, но удалим сразу для чистоты)
+	log.Println("Шаг 4: Удаление временного архива")
+	if err := os.Remove(archivePath); err != nil {
+		log.Printf("Предупреждение: не удалось удалить архив %s: %v", archivePath, err)
+	}
 
-	log.Println("Discord Canary updated")
+	log.Println("Discord Canary успешно обновлен!")
 }
