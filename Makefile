@@ -1,4 +1,4 @@
-.PHONY: build run clean test help install
+.PHONY: build run clean test help install install-desktop uninstall-desktop
 
 # Имя бинарного файла
 BINARY_NAME=updater
@@ -62,6 +62,29 @@ uninstall:
 	sudo rm -f /usr/local/bin/$(BINARY_NAME)
 	@echo "Uninstallation complete"
 
+# Установка ярлыка .desktop для отображения в меню приложений
+install-desktop:
+	@echo "Installing Discord Canary desktop entry..."
+	sudo mkdir -p /usr/share/applications
+	sudo cp discord-canary.desktop /usr/share/applications/discord-canary.desktop
+	sudo chmod 644 /usr/share/applications/discord-canary.desktop
+	@echo "Desktop entry installed successfully"
+	@echo "Run 'update-desktop-database' if needed to refresh the application menu"
+
+# Удаление ярлыка .desktop
+uninstall-desktop:
+	@echo "Removing Discord Canary desktop entry..."
+	sudo rm -f /usr/share/applications/discord-canary.desktop
+	@echo "Desktop entry removed"
+
+# Полная установка (бинарник + ярлык)
+install-all: install install-desktop
+	@echo "Complete installation finished"
+
+# Полное удаление (бинарник + ярлык)
+uninstall-all: uninstall uninstall-desktop
+	@echo "Complete uninstallation finished"
+
 # Форматирование кода
 fmt:
 	@echo "Formatting code..."
@@ -81,15 +104,19 @@ deps:
 # Вывод справки
 help:
 	@echo "Available targets:"
-	@echo "  build          - Build the project"
-	@echo "  run            - Run the project without building"
-	@echo "  start          - Build and run the project"
-	@echo "  test           - Run tests"
-	@echo "  test-coverage  - Run tests with coverage report"
-	@echo "  clean          - Remove build artifacts"
-	@echo "  install        - Install binary to /usr/local/bin"
-	@echo "  uninstall      - Remove binary from /usr/local/bin"
-	@echo "  fmt            - Format code"
-	@echo "  lint           - Run linter (requires golangci-lint)"
-	@echo "  deps           - Verify and tidy dependencies"
-	@echo "  help           - Show this help message"
+	@echo "  build            - Build the project"
+	@echo "  run              - Run the project without building"
+	@echo "  start            - Build and run the project"
+	@echo "  test             - Run tests"
+	@echo "  test-coverage    - Run tests with coverage report"
+	@echo "  clean            - Remove build artifacts"
+	@echo "  install          - Install binary to /usr/local/bin"
+	@echo "  uninstall        - Remove binary from /usr/local/bin"
+	@echo "  install-desktop  - Install .desktop file for application menu"
+	@echo "  uninstall-desktop- Remove .desktop file from application menu"
+	@echo "  install-all      - Install binary and desktop entry"
+	@echo "  uninstall-all    - Remove binary and desktop entry"
+	@echo "  fmt              - Format code"
+	@echo "  lint             - Run linter (requires golangci-lint)"
+	@echo "  deps             - Verify and tidy dependencies"
+	@echo "  help             - Show this help message"
