@@ -1,0 +1,43 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 'stable'
+        cache: true
+
+    - name: Install dependencies
+      run: make deps
+
+    - name: Lint code
+      # Устанавливаем golangci-lint и запускаем линтер через make
+      run: |
+        go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        make lint
+
+    - name: Run tests
+      run: make test
+
+    - name: Build binary
+      run: make build
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: updater-binary
+        path: bin/updater
+        retention-days: 5
