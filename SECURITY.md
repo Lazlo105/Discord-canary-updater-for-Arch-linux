@@ -13,7 +13,7 @@ Use this section to tell people about which versions of your project are current
 
 Use this section to tell people how to report a vulnerability.
 
-If you discover a security vulnerability within this project, please send an email to [your-email@example.com](mailto:your-email@example.com). All security vulnerabilities will be promptly addressed.
+If you discover a security vulnerability within this project, please send an email to [n1vsea9i9@relay.firefox.com](mailto:n1vsea9i9@relay.firefox.com). All security vulnerabilities will be promptly addressed.
 
 Please include the following information in your report:
 - Type of issue (e.g. buffer overflow, SQL injection, cross-site scripting, etc.)
