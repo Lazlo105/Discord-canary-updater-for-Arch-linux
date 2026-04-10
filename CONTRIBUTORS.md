@@ -19,7 +19,7 @@ Please be respectful and constructive in your interactions. We strive to foster 
 
 ## Recognition
 
-- **[Your Name]** - Initial work and maintenance
+- **Lazlo105** - Initial work and maintenance
 
 See also the list of [contributors](https://github.com/your-repo/contributors) who participated in this project.
 
